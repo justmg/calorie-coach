@@ -1,0 +1,64 @@
+
+⏺ Perfect! I've successfully configured your n8n workflows for the calorie coach application.
+  Here's what was created:
+
+  🔧 Created Workflows
+
+  1. ElevenLabs Webhook Handler (ID: QzqCIppqNGxEVJUB)
+  - Receives webhook callbacks from ElevenLabs after calls complete
+  - Parses transcript data to extract calorie information
+  - Saves calorie entries to Supabase
+  - Updates call log status
+
+  2. Daily Call Scheduler (ID: f99ATHtNBISB8lM2)
+  - Runs daily at 8 AM using cron trigger
+  - Fetches all active users from database
+  - Checks each user's call window preferences
+  - Initiates ElevenLabs calls for users within their window
+  - Creates call log records
+
+  3. User Registration Handler (ID: 7NcrGAP8wtVCBZvS)
+  - Webhook endpoint for new user registrations from your app
+  - Validates user data (Clerk ID, phone, PIN format)
+  - Creates new users or updates existing ones
+  - Returns formatted response
+
+  4. Error Handler and Notifications (ID: 8YGv9IComIjqeIx6)
+  - Central error logging webhook
+  - Saves all errors to the errors table
+  - Sends admin email notifications for critical errors
+  - Provides structured error response
+
+  🚀 Next Steps
+
+  To activate these workflows:
+
+  1. Set up credentials in n8n for:
+    - Supabase (URL, service key)
+    - ElevenLabs API key
+    - Email sender credentials
+  2. Activate the workflows using:
+  // Update workflow to active status
+  mcp__n8n-mcp__n8n_update_full_workflow({
+    id: "workflow_id_here",
+    active: true
+  })
+
+  3. Configure webhook URLs in your application to point to these n8n endpoints
+  4. Test each workflow with sample data to ensure proper functionality
+
+  The workflows are now ready and will handle the complete flow from user registration through
+  daily call scheduling and calorie data processing!
+
+
+
+  1. OpenAI -
+  2. Supabase - Your URL and service role key
+  3. ElevenLabs - Your API key and Agent ID
+  4. Email SMTP - For error notifications
+
+  Webhook URLs Generated:
+
+  - https://your-n8n-domain/webhook/elevenlabs-callback
+  - https://your-n8n-domain/webhook/register-user
+  - https://your-n8n-domain/webhook/log-error

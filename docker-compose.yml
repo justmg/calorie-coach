@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=password
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - N8N_METRICS=true
+      - N8N_METRICS_INCLUDE_API_ENDPOINTS=true
+      - N8N_METRICS_INCLUDE_API_PATH_LABEL=true
+      - N8N_METRICS_INCLUDE_API_METHOD_LABEL=true
+      - N8N_METRICS_INCLUDE_API_STATUS_CODE_LABEL=true
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./n8n/workflows:/workflows
+    depends_on:
+      - redis
+    command: n8n start
+
+  n8n-worker:
+    image: n8nio/n8n:latest
+    restart: always
+    environment:
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+    volumes:
+      - n8n-data:/home/node/.n8n
+    depends_on:
+      - redis
+      - n8n
+    command: n8n worker
+
+volumes:
+  n8n-data:
+  redis-data:

@@ -1,0 +1,156 @@
+{
+  "name": "Calorie Coach - Transcript Processor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "process-transcript"
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Process Transcript",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "process-transcript"
+    },
+    {
+      "parameters": {
+        "resource": "chatCompletion",
+        "model": "gpt-4o-mini",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a nutrition analyzer. Extract food items and their calorie counts from the conversation transcript. Return a JSON array of objects with 'name', 'calories', and 'quantity' fields."
+          },
+          {
+            "role": "user",
+            "content": "={{ $json.body.transcript }}"
+          }
+        ],
+        "options": {
+          "temperature": 0.1,
+          "responseFormat": {
+            "type": "json_object"
+          }
+        }
+      },
+      "id": "extract-calories",
+      "name": "Extract Calories (OpenAI)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.2,
+      "position": [450, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "3",
+          "name": "OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const items = JSON.parse($json.choices[0].message.content).items || [];\nconst totalCalories = items.reduce((sum, item) => sum + (item.calories * item.quantity), 0);\n\nreturn {\n  json: {\n    items: items,\n    totalCalories: totalCalories,\n    userId: $node['webhook-trigger'].json.body.user_id,\n    callLogId: $node['webhook-trigger'].json.body.call_log_id,\n    transcript: $node['webhook-trigger'].json.body.transcript\n  }\n};"
+      },
+      "id": "calculate-total",
+      "name": "Calculate Total Calories",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "calorie_entries",
+        "columns": [
+          {
+            "field": "user_id",
+            "value": "={{ $json.userId }}"
+          },
+          {
+            "field": "date",
+            "value": "={{ $now.format('YYYY-MM-DD') }}"
+          },
+          {
+            "field": "items",
+            "value": "={{ JSON.stringify($json.items) }}"
+          },
+          {
+            "field": "total_calories",
+            "value": "={{ $json.totalCalories }}"
+          },
+          {
+            "field": "transcript_text",
+            "value": "={{ $json.transcript }}"
+          },
+          {
+            "field": "call_log_id",
+            "value": "={{ $json.callLogId }}"
+          }
+        ]
+      },
+      "id": "save-calories",
+      "name": "Save Calorie Entry",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "call_logs",
+        "updateKey": "id",
+        "columns": [
+          {
+            "field": "status",
+            "value": "completed"
+          },
+          {
+            "field": "ended_at",
+            "value": "={{ $now.toISO() }}"
+          }
+        ],
+        "where": {
+          "conditions": [
+            {
+              "field": "id",
+              "operation": "=",
+              "value": "={{ $json.callLogId }}"
+            }
+          ]
+        }
+      },
+      "id": "update-call-complete",
+      "name": "Update Call Complete",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "webhook-trigger": {
+      "main": [[{"node": "extract-calories", "type": "main", "index": 0}]]
+    },
+    "extract-calories": {
+      "main": [[{"node": "calculate-total", "type": "main", "index": 0}]]
+    },
+    "calculate-total": {
+      "main": [[{"node": "save-calories", "type": "main", "index": 0}]]
+    },
+    "save-calories": {
+      "main": [[{"node": "update-call-complete", "type": "main", "index": 0}]]
+    }
+  }
+}

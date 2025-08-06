@@ -1,0 +1,54 @@
+{
+  "name": "Calorie Coach - ElevenLabs Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "twilio-voice-response"
+      },
+      "id": "twilio-webhook",
+      "name": "Twilio Voice Response",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "twilio-voice-response"
+    },
+    {
+      "parameters": {
+        "functionCode": "const callLogId = $input.query.call_log_id;\nconst userId = $input.query.user_id;\n\n// Generate TwiML response to stream to ElevenLabs\nconst twiml = `\n<Response>\n  <Connect>\n    <Stream url=\"wss://api.elevenlabs.io/v1/convai/conversation\">\n      <Parameter name=\"agent_id\" value=\"${process.env.ELEVENLABS_AGENT_ID}\" />\n      <Parameter name=\"api_key\" value=\"${process.env.ELEVENLABS_API_KEY}\" />\n      <Parameter name=\"call_log_id\" value=\"${callLogId}\" />\n      <Parameter name=\"user_id\" value=\"${userId}\" />\n    </Stream>\n  </Connect>\n</Response>\n`;\n\nreturn {\n  json: {\n    twiml: twiml,\n    headers: {\n      'Content-Type': 'text/xml'\n    }\n  }\n};"
+      },
+      "id": "generate-twiml",
+      "name": "Generate TwiML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.twiml }}",
+        "responseHeaders": {
+          "entries": [
+            {
+              "name": "Content-Type",
+              "value": "text/xml"
+            }
+          ]
+        }
+      },
+      "id": "respond-to-twilio",
+      "name": "Respond to Twilio",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "twilio-webhook": {
+      "main": [[{"node": "generate-twiml", "type": "main", "index": 0}]]
+    },
+    "generate-twiml": {
+      "main": [[{"node": "respond-to-twilio", "type": "main", "index": 0}]]
+    }
+  }
+}

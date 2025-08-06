@@ -1,0 +1,89 @@
+{
+  "name": "Calorie Coach - Call Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "initiate-call"
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Initiate Call",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "initiate-call"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "call_logs",
+        "updateKey": "id",
+        "columns": [
+          {
+            "field": "status",
+            "value": "in_progress"
+          },
+          {
+            "field": "started_at",
+            "value": "={{ $now.toISO() }}"
+          }
+        ],
+        "where": {
+          "conditions": [
+            {
+              "field": "id",
+              "operation": "=",
+              "value": "={{ $json.body.call_log_id }}"
+            }
+          ]
+        }
+      },
+      "id": "update-call-status",
+      "name": "Update Call Status",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "call",
+        "operation": "make",
+        "to": "={{ $json.body.phone }}",
+        "from": "={{ $env.TWILIO_PHONE_NUMBER }}",
+        "url": "={{ $env.N8N_WEBHOOK_URL }}/twilio-voice-response?call_log_id={{ $json.body.call_log_id }}&user_id={{ $json.body.user_id }}",
+        "additionalFields": {
+          "timeout": 60,
+          "statusCallback": "={{ $env.N8N_WEBHOOK_URL }}/call-status",
+          "statusCallbackEvent": ["completed", "failed", "busy", "no-answer"],
+          "statusCallbackMethod": "POST"
+        }
+      },
+      "id": "make-twilio-call",
+      "name": "Make Twilio Call",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "credentials": {
+        "twilioApi": {
+          "id": "2",
+          "name": "Twilio"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "webhook-trigger": {
+      "main": [[{"node": "update-call-status", "type": "main", "index": 0}]]
+    },
+    "update-call-status": {
+      "main": [[{"node": "make-twilio-call", "type": "main", "index": 0}]]
+    }
+  }
+}

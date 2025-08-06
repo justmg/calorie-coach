@@ -1,0 +1,191 @@
+{
+  "name": "Calorie Coach - Call Scheduler",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "users",
+        "limit": 50,
+        "where": {
+          "conditions": [
+            {
+              "field": "call_window_start",
+              "operation": "<=",
+              "value": "={{ $now.format('HH:mm:ss') }}"
+            },
+            {
+              "field": "call_window_end",
+              "operation": ">=",
+              "value": "={{ $now.format('HH:mm:ss') }}"
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "get-users",
+      "name": "Get Users in Call Window",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "call_logs",
+        "limit": 1,
+        "where": {
+          "conditions": [
+            {
+              "field": "user_id",
+              "operation": "=",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "field": "date",
+              "operation": "=",
+              "value": "={{ $now.format('YYYY-MM-DD') }}"
+            },
+            {
+              "field": "status",
+              "operation": "in",
+              "value": "completed,in_progress"
+            }
+          ]
+        }
+      },
+      "id": "check-existing-call",
+      "name": "Check Existing Call Today",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.length }}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "if-no-call-today",
+      "name": "IF No Call Today",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "call_logs",
+        "columns": [
+          {
+            "field": "user_id",
+            "value": "={{ $node['Get Users in Call Window'].json.id }}"
+          },
+          {
+            "field": "scheduled_at",
+            "value": "={{ $now.toISO() }}"
+          },
+          {
+            "field": "status",
+            "value": "scheduled"
+          }
+        ]
+      },
+      "id": "create-call-log",
+      "name": "Create Call Log",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1050, 250],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_WEBHOOK_URL }}/initiate-call",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "call_log_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "user_id",
+              "value": "={{ $json.user_id }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $node['Get Users in Call Window'].json.phone }}"
+            }
+          ]
+        }
+      },
+      "id": "trigger-call",
+      "name": "Trigger Call Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 250]
+    }
+  ],
+  "connections": {
+    "schedule-trigger": {
+      "main": [[{"node": "get-users", "type": "main", "index": 0}]]
+    },
+    "get-users": {
+      "main": [[{"node": "check-existing-call", "type": "main", "index": 0}]]
+    },
+    "check-existing-call": {
+      "main": [[{"node": "if-no-call-today", "type": "main", "index": 0}]]
+    },
+    "if-no-call-today": {
+      "main": [
+        [{"node": "create-call-log", "type": "main", "index": 0}],
+        []
+      ]
+    },
+    "create-call-log": {
+      "main": [[{"node": "trigger-call", "type": "main", "index": 0}]]
+    }
+  }
+}
