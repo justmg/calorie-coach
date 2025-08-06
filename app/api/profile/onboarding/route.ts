@@ -20,11 +20,31 @@ export async function POST(request: NextRequest) {
     console.log('Processing onboarding for user:', userId)
 
     const body = await request.json()
-    const { pin, call_window_start, call_window_end, timezone } = body
+    const { 
+      pin, 
+      call_window_start, 
+      call_window_end, 
+      timezone,
+      age,
+      gender,
+      height_cm,
+      weight_kg,
+      activity_level,
+      goal_type,
+      weekly_goal_kg,
+      bmr,
+      tdee,
+      target_calories
+    } = body
 
     // Validate input
     if (!pin || pin.length !== 6) {
       return NextResponse.json({ error: 'Invalid PIN' }, { status: 400 })
+    }
+    
+    // Validate TDEE data
+    if (!age || !gender || !height_cm || !weight_kg || !activity_level || !goal_type) {
+      return NextResponse.json({ error: 'Missing required TDEE data' }, { status: 400 })
     }
 
     // Get user's phone number from Clerk
@@ -57,6 +77,16 @@ export async function POST(request: NextRequest) {
         call_window_start,
         call_window_end,
         timezone,
+        age,
+        gender,
+        height_cm,
+        weight_kg,
+        activity_level,
+        goal_type,
+        weekly_goal_kg: weekly_goal_kg || 0,
+        bmr,
+        tdee,
+        target_calories
       })
       .select()
       .single()
